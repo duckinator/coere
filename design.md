@@ -13,7 +13,7 @@ Lambdas return the last value.
 
 Variable Definition
 ===================
-    alist: ["abc" "def"]
+    alist: (list "abc" "def")
 
 Function Definition
 ===================
