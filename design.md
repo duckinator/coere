@@ -58,7 +58,7 @@ would become
 ## Lambdas ##
     [arg1 arg2 ->  arg1 + arg2]
 would become
-    [:lambda, ['arg1', 'arg2'], [:call, "add", ["arg1", "arg2"]]]
+    [:lambda, ["arg1", "arg2"], [:call, "add", ["arg1", "arg2"]]]
 
 ## Variable definitions ##
     variablename: "value"
