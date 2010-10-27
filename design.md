@@ -13,7 +13,7 @@ Lambdas return the last value.
 
 Variable Definition
 ===================
-    alist: ["abc" "def"].
+    alist: ["abc" "def"]
 
 Function Definition
 ===================
@@ -57,7 +57,6 @@ would become
 
 ## Lambdas ##
     [arg1 arg2 ->  arg1 + arg2]
-    .
 would become
     [:lambda, ['arg1', 'arg2'], [:call, "add", ["arg1", "arg2"]]]
 
