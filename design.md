@@ -13,6 +13,7 @@ Lambdas return the last value.
 
 Variable Definition
 ===================
+Variables are immutable, but I can't think of a better term.
     alist: (list "abc" "def")
 
 Function Definition
