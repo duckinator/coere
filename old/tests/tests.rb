@@ -31,3 +31,11 @@ EOF
 
 p Parser.new(code).ast
 
+2.times{puts}
+
+code = <<EOF
+  print: ''
+  (print "ohai thar")
+EOF
+
+p Parser.new(code).ast
