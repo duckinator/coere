@@ -1,18 +1,9 @@
-#!/usr/bin/env ruby
-
 require File.join(File.dirname(__FILE__), 'scope.rb')
 
-code = <<EOF
-    function1: [str1 str2 ->              ; useless comment
-      string: (join " " (list str1 str2)) ;; useless documentation comment
-      (print string)
-    ]
-
-EOF
-
-
 class Parser
+  attr_reader :ast
   def initialize(code)
+    @ast = []
     @code = code
     @i = 0
     @line = 1
@@ -68,7 +59,6 @@ class Parser
   end
 
   def parse_string
-    puts "In parse_string()"
     assertHasMore("Unterminated string literal met end of file.")
     start = @i
     last = @code.index('"', @i)
@@ -81,7 +71,6 @@ class Parser
   end
 
   def parse_definition(name, scope)
-    puts "In parse_definition()"
     assertHasMore("Definition met end of file.")
     item = nil
     endloop = false
@@ -103,7 +92,6 @@ class Parser
   end
 
   def parse_lambda(pscope)
-    puts "In parse_lambda()"
     assertHasMore("Unexpected end of file in lambda, expected lambda, list, or definition.")
     scope = Scope.new(pscope)
     args = []
@@ -160,7 +148,6 @@ class Parser
   end
 
   def parse_list(pscope)
-    puts "In parse_list()"
     assertHasMore("Unexpected end of file in list, expected lambda, string, or list.")
     scope = Scope.new(pscope)
     items = []
@@ -201,7 +188,6 @@ class Parser
   end
 
   def parse
-    puts "In parse()"
     program = []
     name = nil
     scope = @global_scope
@@ -225,26 +211,8 @@ class Parser
       next!
       program << ret unless ret.nil?
     end
-    p program
+    @ast = program
     program
   end
 end
-
-Parser.new(code)
-
-5.times{puts}
-
-Parser.new("(a b (c d))")
-
-5.times{puts}
-
-Parser.new("a: [b -> b]")
-
-5.times{puts}
-
-Parser.new("a: [b -> (b)]")
-
-5.times{puts}
-
-Parser.new("[a b -> (print a) (print b)]")
 
