@@ -3,8 +3,8 @@
 require File.join(File.dirname(__FILE__), 'scope.rb')
 
 code = <<EOF
-    function1: [str1 str2 ->
-      string: (join " " (list str1 str2))
+    function1: [str1 str2 ->              ; useless comment
+      string: (join " " (list str1 str2)) ;; useless documentation comment
       (print string)
     ]
 
@@ -31,6 +31,16 @@ class Parser
 
   def lastWhitespace?
     [" ", "\t", "\n"].include?(@code[@i-1])
+  end
+
+  def skipWhitespace
+    next! while whitespace?
+  end
+
+  def skipComments
+    if cur == ";"
+      readUntil("\n")
+    end
   end
 
   def next!
@@ -61,32 +71,35 @@ class Parser
     puts "In parse_string()"
     assertHasMore("Unterminated string literal met end of file.")
     start = @i
-    next! until @i == @code.index('"', start)
+    last = @code.index('"', @i)
+    next! until @i == last
     while @code[@i-1] == "\\"
       next! until cur == '"'
     end
     next!
-    @code[start..(@i-1)]
+    @code[(start-1)..(@i-2)]
   end
 
   def parse_definition(name, scope)
     puts "In parse_definition()"
     assertHasMore("Definition met end of file.")
-    items = []
+    item = nil
     endloop = false
     next!
+    skipWhitespace
+    skipComments
     case cur
     when ':'
       error "Definition inside of a definition."
     when '"'
-      items << parse_string
+      item = parse_string
     when '['
-      items << parse_lambda(scope)
+      item = parse_lambda(scope)
     when '('
-      items << parse_list(scope)
+      item = parse_list(scope)
     end
-    scope.define(name, items, @line, @column)
-    [:define, name, items]
+    scope.define(name, item, @line, @column)
+    [:define, name, item]
   end
 
   def parse_lambda(pscope)
@@ -99,8 +112,9 @@ class Parser
     name = nil
     endloop = false
     next!
+    skipWhitespace
     until endloop
-      p in_args
+      skipComments
       case cur
         when '"'
           if in_args
@@ -124,16 +138,15 @@ class Parser
           endloop = true
         else
           if cur == "-" && @code[@i+1] == ">"
-            # First half of ->
-            args << name
+            # the -> in lambdas
+            args << name unless name.nil?
             in_args = false
             name = nil
-          elsif @code[@i-1] == "-" && cur == ">"
-            # Second half of ->
-          elsif whitespace? && !name.nil?
-            if in_args
+            next! # Skip over the > in ->
+          elsif whitespace?
+            if in_args && !name.nil?
               args << [:variable, name]
-            else
+            elsif !name.nil?
               body << [:variable, name]
             end
             name = nil
@@ -143,8 +156,6 @@ class Parser
       end
       next! unless endloop
     end
-    p args
-    p body
     [:lambda, args, body]
   end
 
@@ -157,6 +168,7 @@ class Parser
     endloop = false
     next!
     until endloop
+      skipComments
       case cur
       when '"'
         items << parse_string
@@ -167,6 +179,7 @@ class Parser
       when '('
         items << parse_list(scope)
       when ')'
+        items << [:variable, name] unless name.nil?
         endloop = true
       else
         if whitespace?
@@ -192,7 +205,10 @@ class Parser
     program = []
     name = nil
     scope = @global_scope
+    skipWhitespace
+    skipComments
     until cur.nil?
+      skipComments
       case cur
       when '['
         ret = parse_lambda(scope)
