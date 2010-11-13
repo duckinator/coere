@@ -1,5 +1,7 @@
 #!/usr/bin/env ruby
 
+require File.join(File.dirname(__FILE__), 'scope.rb')
+
 code = <<EOF
     function1: [str1 str2 ->
       string: (join " " (list str1 str2))
@@ -8,33 +10,6 @@ code = <<EOF
 
 EOF
 
-class Scope
-  attr_reader :vars
-  def initialize(parent = nil)
-    @vars = {}
-    @parent = parent
-  end
-
-  def error(str, line, column)
-    puts "[Error] #{@line}:#{@column}: #{str}"
-    exit
-  end
-
-  def define(name, value, line, column)
-    error("Cannot redefine #{name}", line, column) if @vars.include?(name) || (!@parent.nil? && @parent.vars.include?(name))
-    @vars[name] = value
-  end
-
-  def get(name, line, column)
-    if @vars.include?(name)
-      @vars[name]
-    elsif !@parent.nil? && @parent.vars.include?(name)
-      @parent.get(name, line, column)
-    else
-      error("#{name} is undefined", line, column)
-    end
-  end
-end
 
 class Parser
   def initialize(code)
@@ -46,12 +21,16 @@ class Parser
     parse
   end
 
-  def ret(i, items)
-    [i, items]
-  end
-
   def cur
     @code[@i]
+  end
+
+  def whitespace?
+    [" ", "\t", "\n"].include?(@code[@i])
+  end
+
+  def lastWhitespace?
+    [" ", "\t", "\n"].include?(@code[@i-1])
   end
 
   def next!
@@ -69,51 +48,143 @@ class Parser
     exit
   end
 
-  def parse_string(start)
+  def assertHasMore(message = nil)
+    message = "Unexpected end of file" if message.nil?
+    error message if @i >= @code.length 
+  end
+
+  def readUntil(c)
+    next! until cur == c
+  end
+
+  def parse_string
     puts "In parse_string()"
-    pos = @code.index('"', start)
-    while @code[pos-1] == "\\"
-      pos = @code.index('"', pos)
+    assertHasMore("Unterminated string literal met end of file.")
+    start = @i
+    next! until @i == @code.index('"', start)
+    while @code[@i-1] == "\\"
+      next! until cur == '"'
     end
-    ret pos + 1, @code[start..(pos-1)]
+    next!
+    @code[start..(@i-1)]
   end
 
-  def parse_definition(name, start, scope)
+  def parse_definition(name, scope)
     puts "In parse_definition()"
-    scope.define(name, "HAI", @line, @column)
-    pos = start
-    ret pos, [:define, "?", "?!"]
-  end
-
-  def parse_lambda(start, pscope)
-    puts "In parse_lambda()"
-    scope = Scope.new(pscope)
-    pos = start
-    ret pos, [:lambda, [], []]
-  end
-
-  def parse_list(start, pscope)
-    puts "In parse_list()"
-    scope = Scope.new(pscope)
-    i = start
+    assertHasMore("Definition met end of file.")
     items = []
-    itemNumber = 0
     endloop = false
+    next!
+    case cur
+    when ':'
+      error "Definition inside of a definition."
+    when '"'
+      items << parse_string
+    when '['
+      items << parse_lambda(scope)
+    when '('
+      items << parse_list(scope)
+    end
+    scope.define(name, items, @line, @column)
+    [:define, name, items]
+  end
+
+  def parse_lambda(pscope)
+    puts "In parse_lambda()"
+    assertHasMore("Unexpected end of file in lambda, expected lambda, list, or definition.")
+    scope = Scope.new(pscope)
+    args = []
+    body = []
+    in_args = true
+    name = nil
+    endloop = false
+    next!
     until endloop
-      current = @code[i]
-      case current
+      p in_args
+      case cur
+        when '"'
+          if in_args
+            error "String in lambda argument."
+          else
+            body << parse_string
+          end
+        when '('
+          if in_args
+            error "List in lambda argument."
+          else
+            body << parse_list(scope)
+          end
+        when '['
+          if in_args
+            error "Lambda in lambd argument."
+          else
+            body << parse_lambda(scope)
+          end
+        when ']'
+          endloop = true
+        else
+          if cur == "-" && @code[@i+1] == ">"
+            # First half of ->
+            args << name
+            in_args = false
+            name = nil
+          elsif @code[@i-1] == "-" && cur == ">"
+            # Second half of ->
+          elsif whitespace?
+            if in_args
+              args << [:variable, name]
+            else
+              body << [:variable, name]
+            end
+            name = nil
+          else
+            name = "#{name}#{cur}"
+          end
+      end
+      next! unless endloop
+    end
+    p args
+    p body
+    [:lambda, args, body]
+  end
+
+  def parse_list(pscope)
+    puts "In parse_list()"
+    assertHasMore("Unexpected end of file in list, expected lambda, string, or list.")
+    scope = Scope.new(pscope)
+    items = []
+    name = nil
+    endloop = false
+    next!
+    until endloop
+      case cur
+      when '"'
+        items << parse_string
       when ':'
         error "Definition inside of a list."
       when '['
-        ret = parse_lambda(i + 1, scope)
-        items[itemNumber] = ret
+        items << parse_lambda(scope)
+      when '('
+        items << parse_list(scope)
       when ')'
         endloop = true
+      else
+        if whitespace?
+          items << [:variable, name] unless name.nil?
+          name = nil
+        else
+          name = "#{name}#{cur}"
+        end
       end
-      i += 1
-      break if endloop
+      unless endloop
+        assertHasMore("Unexpected end of file in list, expected lambda, string, or list.")
+        next!
+      end
     end
-    ret i, [:call, "?", []]
+    args = []
+    args = items[1..-1] if items.length > 1
+
+    [:call, items[0], args]
   end
 
   def parse
@@ -122,36 +193,42 @@ class Parser
     name = nil
     scope = @global_scope
     until cur.nil?
-      ret = [nil, nil]
       case cur
       when '['
-        next!
-        ret = parse_lambda(@i, scope)
+        ret = parse_lambda(scope)
       when '('
-        next!
-        ret = parse_list(@i, scope)
+        ret = parse_list(scope)
       when ':'
-        next!
         error "Unexpected ':'" if name.nil?
-        ret = parse_definition(name, @i, scope)
+        ret = parse_definition(name, scope)
       when '"'
         error "Useless string: Not bound to a variable and outside of all lambdas."
-      when "\n"
-        @column = 0
-        @line += 1
       else
-        p cur
         name = "#{name}#{cur}"
       end
-      if !ret[0].nil?
-        @i = ret[0]
-      else
-        next!
-      end
-      program << ret[1] unless ret[1].nil?
+      next!
+      program << ret unless ret.nil?
     end
+    p program
     program
   end
 end
 
 Parser.new(code)
+
+5.times{puts}
+
+Parser.new("(a b (c d))")
+
+5.times{puts}
+
+Parser.new("a: [b -> b]")
+
+5.times{puts}
+
+Parser.new("a: [b -> (b)]")
+
+5.times{puts}
+
+Parser.new("[a b -> (print a) (print b)]")
+
