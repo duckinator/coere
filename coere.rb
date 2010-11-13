@@ -130,7 +130,7 @@ class Parser
             name = nil
           elsif @code[@i-1] == "-" && cur == ">"
             # Second half of ->
-          elsif whitespace?
+          elsif whitespace? && !name.nil?
             if in_args
               args << [:variable, name]
             else
