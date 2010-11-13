@@ -23,6 +23,7 @@ class Scope
   end
 
   def define(name, value, line, column)
+    return defineArg(name, value, line, column) if @args.include?(name)
     error("Cannot redefine #{name}", line, column) if @vars.include?(name) || @args.include?(name) #|| (!@parent.nil? && @parent.vars.include?(name))
     @vars[name] = value
   end
@@ -30,6 +31,8 @@ class Scope
   def get(name, line, column)
     if @vars.include?(name)
       @vars[name]
+    elsif @args.include?(name)
+      @args[name]
     elsif !@parent.nil? && @parent.vars.include?(name)
       @parent.get(name, line, column)
     else
