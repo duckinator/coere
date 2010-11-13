@@ -12,7 +12,7 @@ class Parser
     parse
   end
 
-  def cur
+  def current
     @code[@i]
   end
 
@@ -29,14 +29,15 @@ class Parser
   end
 
   def skipComments
-    if cur == ";"
+    if current == ";"
       readUntil("\n")
+      skipWhitespace
     end
   end
 
   def next!
     @i += 1
-    if cur == "\n"
+    if current == "\n"
       @column = 0
       @line += 1
     else
@@ -54,8 +55,12 @@ class Parser
     error message if @i >= @code.length 
   end
 
+  def assertDefined(name, scope)
+    error "Undefined variable #{name}" unless scope.accessible?(name)
+  end
+
   def readUntil(c)
-    next! until cur == c
+    next! until current == c
   end
 
   def parse_string
@@ -64,7 +69,7 @@ class Parser
     last = @code.index('"', @i)
     next! until @i == last
     while @code[@i-1] == "\\"
-      next! until cur == '"'
+      next! until current == '"'
     end
     next!
     @code[(start-1)..(@i-2)]
@@ -77,7 +82,7 @@ class Parser
     next!
     skipWhitespace
     skipComments
-    case cur
+    case current
     when ':'
       error "Definition inside of a definition."
     when '"'
@@ -103,13 +108,17 @@ class Parser
     skipWhitespace
     until endloop
       skipComments
-      case cur
+      case current
         when '"'
           if in_args
             error "String in lambda argument."
           else
             body << parse_string
           end
+        when ':'
+          error "Unexpected ':'" if name.nil?
+          error "Variable definition in lambda argument." if in_args
+          body << parse_definition(name, scope)
         when '('
           if in_args
             error "List in lambda argument."
@@ -125,21 +134,25 @@ class Parser
         when ']'
           endloop = true
         else
-          if cur == "-" && @code[@i+1] == ">"
+          if current == "-" && @code[@i+1] == ">"
             # the -> in lambdas
             args << name unless name.nil?
             in_args = false
             name = nil
             next! # Skip over the > in ->
           elsif whitespace?
-            if in_args && !name.nil?
-              args << [:variable, name]
-            elsif !name.nil?
-              body << [:variable, name]
+            unless name.nil?
+              if in_args
+                scope.addArg(name, @line, @column)
+                args << [:variable, name]
+              else
+                assertDefined(name, scope)
+                body << [:variable, name]
+              end
             end
             name = nil
           else
-            name = "#{name}#{cur}"
+            name = "#{name}#{current}"
           end
       end
       next! unless endloop
@@ -156,7 +169,7 @@ class Parser
     next!
     until endloop
       skipComments
-      case cur
+      case current
       when '"'
         items << parse_string
       when ':'
@@ -166,14 +179,20 @@ class Parser
       when '('
         items << parse_list(scope)
       when ')'
-        items << [:variable, name] unless name.nil?
-        endloop = true
+          unless name.nil?
+            assertDefined(name, scope)
+            items << [:variable, name]
+          end
+          endloop = true
       else
         if whitespace?
-          items << [:variable, name] unless name.nil?
+          unless name.nil?
+            assertDefined(name, scope)
+            items << [:variable, name]
+          end
           name = nil
         else
-          name = "#{name}#{cur}"
+          name = "#{name}#{current}"
         end
       end
       unless endloop
@@ -181,6 +200,7 @@ class Parser
         next!
       end
     end
+    puts "name: #{name.inspect}"
     args = []
     args = items[1..-1] if items.length > 1
 
@@ -191,11 +211,10 @@ class Parser
     program = []
     name = nil
     scope = @global_scope
-    skipWhitespace
-    skipComments
-    until cur.nil?
+    until current.nil?
+      skipWhitespace
       skipComments
-      case cur
+      case current
       when '['
         ret = parse_lambda(scope)
       when '('
@@ -203,10 +222,11 @@ class Parser
       when ':'
         error "Unexpected ':'" if name.nil?
         ret = parse_definition(name, scope)
+        name = nil
       when '"'
         error "Useless string: Not bound to a variable and outside of all lambdas."
       else
-        name = "#{name}#{cur}"
+        name = "#{name}#{current}"
       end
       next!
       program << ret unless ret.nil?
