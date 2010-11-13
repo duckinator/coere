@@ -38,7 +38,7 @@ class Scope
   end
 
   def defined?(name)
-    (@vars.include?(name) || (@args.include?(name) && @args[name] != :undefined) || (!@parent.nil? && @parent.defined?(name)))
+    ((@vars.include?(name) && @vars[name] != :undefined) || (@args.include?(name) && @args[name] != :undefined) || (!@parent.nil? && @parent.defined?(name)))
   end
 
   def accessible?(name)
