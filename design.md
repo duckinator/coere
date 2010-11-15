@@ -70,7 +70,7 @@ would become
     functionname: [arg1 arg2 -> (+ arg1 arg2)]
       
 would become
-    [:define, "function-name",
-      [:lambda, ["arg1", "arg2"],
-         [:call, "add", ["arg1", "arg2"]]]]
+    [:define, "functionname",
+      [:lambda, [[:argument, "arg1"], [:argument, "arg2"]],
+         [:call, "add", [[:variable, "arg1"], [:variable, "arg2"]]]]]
 
