@@ -27,7 +27,7 @@ class Parser
     @i = 0
     @line = 1
     @column = 1
-    @global_scope = Scope.new
+    @globalScope = Scope.new
   end
 
   def current
