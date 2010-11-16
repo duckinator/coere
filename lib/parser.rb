@@ -1,7 +1,5 @@
 %w{scope sysconfig}.each { |x| require File.join(File.dirname(File.expand_path(__FILE__)), "#{x}.rb") }
 
-$PARSER_HANDLERS = {}
-
 class Parser
   attr_accessor :ast, :name, :file, :code, :position, :line, :column, :scope
   def initialize(language, file='', code='', col=1, line=1, scope = nil, reset = true)
@@ -13,13 +11,14 @@ class Parser
     @scope = scope
     @file = file
     @code = code
+    @handlers = {}
     reset() # Why must I use parens?
     loadFiles
     parse(file, code) unless code.empty?
   end
 
   def loadFiles
-    dir = File.join(SysConfig.dir, "lib", "subparsers", @language)
+    dir = File.join(SysConfig.dir, "lib", @language)
     `cd #{dir} && #{SysConfig.ls} #{SysConfig.lsflags}`.split.grep(/\.rb$/).each {|x| require File.join(dir, x) }
   end
 
@@ -33,6 +32,7 @@ class Parser
     @line = 1 if @reset
     @column = 1 if @reset
     @scope = Scope.new if @scope.nil?
+    setup
   end
 
   def current
@@ -131,16 +131,16 @@ class Parser
   end
 
   def handle
-    if $PARSER_HANDLERS.include?(@language) && $PARSER_HANDLERS[@language].include?(current)
-      instance_eval &$PARSER_HANDLERS[@language][current]
+    if @@handlers.include?(current)
+      instance_eval &@@handlers[current]
     else
       @name += current
     end
   end
 
-  def self.on(language, name, &block)
-    $PARSER_HANDLERS[language] ||= {}
-    $PARSER_HANDLERS[language][name] = block
+  def on(name, &block)
+    @handlers ||= {}
+    @handlers[name] = block
   end
 
   def self.runtests
@@ -155,9 +155,8 @@ class Parser
       end
     end
   end
+
+  def setup
+  end
 end
 
-Parser.runtests
-#parser = Parser.new("coere")
-#parser.loadFiles
-#parser.parse("a: b")
