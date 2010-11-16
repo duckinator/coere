@@ -1,0 +1,4 @@
+; test
+foo: [a b -> (join " " (list a b))]
+
+(foo "c" "d")

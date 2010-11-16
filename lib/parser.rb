@@ -1,49 +1,54 @@
-require File.join(File.dirname(File.expand_path(__FILE__)), 'scope.rb')
+%w{scope sysconfig}.each { |x| require File.join(File.dirname(File.expand_path(__FILE__)), "#{x}.rb") }
 
 $PARSER_HANDLERS = {}
 
 class Parser
-  def initialize(language, file='(eval)', code='')
+  attr_accessor :ast, :name, :file, :code, :position, :line, :column, :scope
+  def initialize(language, file='', code='', col=1, line=1, scope = nil, reset = true)
+    SysConfig.setup unless SysConfig.done
     @language = language
-    parse(file, code)
+    @column = col
+    @line = line
+    @reset = reset
+    @scope = scope
+    @file = file
+    @code = code
+    reset() # Why must I use parens?
+    loadFiles
+    parse(file, code) unless code.empty?
   end
 
   def loadFiles
-    dir = File.join(File.dirname(File.expand_path(__FILE__)), "subparsers", @language)
-    if RUBY_PLATFORM =~ /(win|w)32$/
-      cmd = "dir"
-      flags = "/B"
-    else
-      cmd = "ls"
-      flags = "-1"
-    end
-    `cd #{dir} && #{cmd} #{flags}`.split.grep(/\.rb$/).each {|x| require File.join(dir, x) }
+    dir = File.join(SysConfig.dir, "lib", "subparsers", @language)
+    `cd #{dir} && #{SysConfig.ls} #{SysConfig.lsflags}`.split.grep(/\.rb$/).each {|x| require File.join(dir, x) }
   end
 
   def reset
     @ast = []
-    @file = ''
-    @code = ''
-    @i = 0
-    @line = 1
-    @column = 1
-    @globalScope = Scope.new
+    @name = ''
+    @position = 0
+    @file = '' if @reset
+    @code = '' if @reset
+    @offset =  0 if @reset
+    @line = 1 if @reset
+    @column = 1 if @reset
+    @scope = Scope.new if @scope.nil?
   end
 
   def current
-    @code[@i]
+    @code[@position]
   end
 
   def previous
-    @code[@i-1]
+    @code[@position-1]
   end
 
   def whitespace?
-    [" ", "\t", "\n"].include?(@code[@i])
+    [" ", "\t", "\n"].include?(@code[@position])
   end
 
   def lastWhitespace?
-    [" ", "\t", "\n"].include?(@code[@i-1])
+    [" ", "\t", "\n"].include?(@code[@position-1])
   end
 
   def skipWhitespace
@@ -58,23 +63,25 @@ class Parser
   end
 
   def next!
-    @i += 1
+    @position += 1
     if current == "\n"
-      @column = 0
+      @column = 1
       @line += 1
     else
       @column += 1
     end
   end
 
-  def error(str)
-    puts "[Error] #{@line}:#{@column}: #{str}"
+  def error(str, showpos=true)
+    print "[Error] "
+    print "#{@line}:#{@column}: " if showpos
+    puts str
     exit
   end
 
   def assertHasMore(message = nil)
     message = "Unexpected end of file" if message.nil?
-    error message if @i >= @code.length 
+    error message if @position >= @code.length 
   end
 
   def assertDeclared(name, scope)
@@ -82,21 +89,75 @@ class Parser
   end
 
   def readUntil(c)
+    start = @position
     next! until current == c
+    @code[start...@position]
   end
 
-  def parse(file, code)
-    reset
-    @file = file
-    @code = code
+  def parse(one, two='')
+    #reset
+    code = ''
+    file = '(no-file)'
+    if (one.nil? || one.empty?) && two.empty?
+      error "No file or code specified", false
+    elsif two.empty?
+      if File.exist?(one)
+        file = one
+      else
+        code = one
+      end
+    else
+      file = one
+      code = two
+    end
+    if code.empty?
+      if File.exist?(file)
+        code = File.open(file).read
+      else
+        error "File #{file} not found", false
+      end
+    end
+    @file = file if @file.empty?
+    @code = code if @code.empty?
+    assertHasMore("No code provided")
+    while @position < @code.length
+      puts "[#{@position}] #{@line}:#{@column}: #{current.inspect}"
+      oldPos = @position
+      ret = handle
+      @ast << ret[0] if ret.is_a?(Array) && ret.length > 0
+      @name = ret[1] if ret.is_a?(Array) && ret.length > 1
+      next! if oldPos == @position
+    end
   end
 
-  def self.on(name, &block)
-    $PARSER_HANDLERS[@language] ||= {}
-    $PARSER_HANDLERS[@language][name] = block
+  def handle
+    if $PARSER_HANDLERS.include?(@language) && $PARSER_HANDLERS[@language].include?(current)
+      instance_eval &$PARSER_HANDLERS[@language][current]
+    else
+      @name += current
+    end
+  end
+
+  def self.on(language, name, &block)
+    $PARSER_HANDLERS[language] ||= {}
+    $PARSER_HANDLERS[language][name] = block
+  end
+
+  def self.runtests
+    SysConfig.setup
+    dir = File.join(SysConfig.dir, "tests")
+    `#{SysConfig.ls} #{dir}`.split.each do |s|
+      subdir = File.join(dir, s)
+      parser = Parser.new(s)
+      `#{SysConfig.ls} #{subdir}`.split.each do |file|
+        puts "Running \"#{file.split('.')[0..-2].join('.')}\" test for #{s}"
+        parser.parse(File.join(subdir, file))
+      end
+    end
   end
 end
 
-parser = Parser.new("coere")
-parser.loadFiles
-p parser
+Parser.runtests
+#parser = Parser.new("coere")
+#parser.loadFiles
+#parser.parse("a: b")
