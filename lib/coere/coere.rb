@@ -29,7 +29,7 @@ class CoereParser < Parser
       next!
       puts "String: #{str.inspect}"
 
-      [str.inspect]
+      [str]
     end
 
     on ';' do
@@ -38,4 +38,4 @@ class CoereParser < Parser
   end
 end
 
-CoereParser.new(File.join(SysConfig.dir, "tests", "main.#{@language}"))
+p CoereParser.new(File.join(SysConfig.dir, "tests", "main.coere")).ast

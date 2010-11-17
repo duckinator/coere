@@ -14,18 +14,22 @@ class SysConfig
   end
 
   def self.dir
+    setup unless @done
     @@dir
   end
 
   def self.lsflags
+    setup unless @done
     @@lsflags
   end
 
   def self.ls
+    setup unless @done
     @@ls
   end
 
   def self.done
+    setup unless @done
     @@done
   end
 end

@@ -14,7 +14,7 @@ class Parser
     @handlers = {}
     reset() # Why must I use parens?
     loadFiles
-    parse(file, code) unless code.empty?
+    parse(file, code) unless code.empty? && file.empty?
   end
 
   def loadFiles
@@ -131,10 +131,10 @@ class Parser
   end
 
   def handle
-    if @@handlers.include?(current)
-      instance_eval &@@handlers[current]
+    if @handlers.include?(current)
+      instance_eval &@handlers[current]
     else
-      @name += current
+      @name += current unless whitespace?
     end
   end
 
