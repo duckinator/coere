@@ -12,8 +12,10 @@ class CoereParser < Parser
       l = @line
       c = @column
       str = readUntil("\n")
-      code = CoereParser.new(@file, str[1..-1], c, l, @scope, false).ast
-      @scope.define(name, code, line, column)
+      parser = CoereParser.new(@file, str[1..-1], c, l, @scope, false)
+      @line = parser.line
+      @column = parser.column
+      @scope.define(@name, code, l, c)
       [[:define, @name, code], '']
     end
 
