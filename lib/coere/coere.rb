@@ -23,6 +23,11 @@ class CoereParser < Parser
     end
 
     on '(' do
+      next!
+      str = readUntil(')')
+      next!
+      puts "List: #{str.inspect}"
+      [[:call, nil, []]]
     end
 
     on '"' do
@@ -35,7 +40,16 @@ class CoereParser < Parser
     end
 
     on ';' do
-      readUntil("\n")
+      oldname=@name
+      next!
+      str = readUntil("\n").strip
+      @name = oldname
+      puts "Comment: #{str}"
+      if str[0] == ';'
+        [[:doc, str[2..-1]]]
+      else
+        [[:comment, str]]
+      end
     end
   end
 end

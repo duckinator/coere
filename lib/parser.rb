@@ -134,7 +134,7 @@ class Parser
     if @handlers.include?(current)
       instance_eval &@handlers[current]
     else
-      @name += current unless whitespace?
+      @name = "#{name}#{current}" unless whitespace?
     end
   end
 
