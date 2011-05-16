@@ -8,6 +8,7 @@ Lambdas
 =======
 Lambdas are merely a block of code that accepts arguments, if you just need a block, then leave the argument list empty.
 Lambdas return the last value.
+
     [ x y -> foo]
 
 
@@ -19,6 +20,7 @@ Variables are immutable, but I can't think of a better term.
 Function Definition
 ===================
 Functions are named lambdas
+
     ;; joins /str1/ and /str2/ with a space, and print the resulting string
     function1: [str1 str2 ->
       string: (join " " (list str1 str2))
@@ -33,11 +35,13 @@ Functions are named lambdas
 
 Function Calling
 ================
+
     (function1 (list "foo" "bar"))
 
 
 Throwing It Together
 ====================
+
     ; Define a-list
     alist: (list "abc" "def")
     
@@ -49,27 +53,39 @@ Throwing It Together
 
 AST
 ===
+
 This is just a quick layout for the AST.
 
 ## Function calls ##
+
     (add 1 2)
+
 would become
+
     [:call, "add", [1, 2]]
 
 ## Lambdas ##
+
     [arg1 arg2 ->  arg1 + arg2]
+
 would become
+
     [:lambda, ["arg1", "arg2"], [:call, "add", ["arg1", "arg2"]]]
 
 ## Variable definitions ##
+
     variablename: "value"
+
 would become
+
     [:define, "variablename", "value"]
 
 ## Function definitions, aka named lambdas ##
+
     functionname: [arg1 arg2 -> (+ arg1 arg2)]
       
 would become
+
     [:define, "functionname",
       [:lambda, [[:argument, "arg1"], [:argument, "arg2"]],
          [:call, "add", [[:variable, "arg1"], [:variable, "arg2"]]]]]
